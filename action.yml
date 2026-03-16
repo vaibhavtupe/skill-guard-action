@@ -1,0 +1,87 @@
+name: skill-guard
+description: Quality gate for Agent Skills — validate, secure, conflict-check, and eval your skills in CI.
+author: vaibhavtupe
+
+inputs:
+  command:
+    description: "Command to run: validate, secure, conflict, check, test"
+    required: false
+    default: check
+  path:
+    description: Path to the skill directory
+    required: true
+  against:
+    description: Path to skills directory or catalog for conflict detection
+    required: false
+    default: ""
+  endpoint:
+    description: OpenAI-compatible agent endpoint for eval tests
+    required: false
+    default: ""
+  config:
+    description: Path to skill-guard.yaml config file
+    required: false
+    default: ""
+  format:
+    description: "Output format: text, json, markdown"
+    required: false
+    default: text
+  fail-on-warning:
+    description: Exit non-zero on warnings, not just errors
+    required: false
+    default: "false"
+  version:
+    description: skill-guard version to install (default latest)
+    required: false
+    default: ""
+  python-version:
+    description: Python version to use
+    required: false
+    default: "3.11"
+
+outputs:
+  exit-code:
+    description: Exit code from skill-guard
+    value: ${{ steps.run.outputs.exit-code }}
+  report-path:
+    description: Path to the report file (when format=markdown)
+    value: ${{ steps.run.outputs.report-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install skill-guard
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          pip install "skill-guard==${{ inputs.version }}"
+        else
+          pip install skill-guard
+        fi
+
+    - name: Run skill-guard
+      id: run
+      shell: bash
+      run: |
+        ARGS="${{ inputs.command }} ${{ inputs.path }}"
+        [ -n "${{ inputs.against }}" ] && ARGS="$ARGS --against ${{ inputs.against }}"
+        [ -n "${{ inputs.endpoint }}" ] && ARGS="$ARGS --endpoint ${{ inputs.endpoint }}"
+        [ -n "${{ inputs.config }}" ] && ARGS="$ARGS --config ${{ inputs.config }}"
+        [ -n "${{ inputs.format }}" ] && ARGS="$ARGS --format ${{ inputs.format }}"
+        [ "${{ inputs.fail-on-warning }}" = "true" ] && ARGS="$ARGS --fail-on-warning"
+
+        if [ "${{ inputs.format }}" = "markdown" ]; then
+          REPORT="${{ runner.temp }}/skill-guard-report.md"
+          skill-guard $ARGS --output "$REPORT" || EXIT_CODE=$?
+          echo "report-path=$REPORT" >> $GITHUB_OUTPUT
+        else
+          skill-guard $ARGS || EXIT_CODE=$?
+        fi
+
+        echo "exit-code=${EXIT_CODE:-0}" >> $GITHUB_OUTPUT
+        exit ${EXIT_CODE:-0}
