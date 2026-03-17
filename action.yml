@@ -1,6 +1,9 @@
 name: skill-guard
 description: Quality gate for Agent Skills — validate, secure, conflict-check, and eval your skills in CI.
 author: vaibhavtupe
+branding:
+  icon: "shield"
+  color: "purple"
 
 inputs:
   command:
